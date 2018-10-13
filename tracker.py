@@ -29,6 +29,8 @@ def main():
     # list of tracked points
     color_lower = (29, 86, 6)
     color_upper = (64, 255, 255)
+    green_lower = (50, 50, 50) 
+    green_upper = (70,255,255)
 
     # if a video path was not supplied, grab the reference
     # to the webcam
@@ -42,13 +44,14 @@ def main():
     # allow the camera or video file to warm up
     time.sleep(2.0)
     stream = args.get("video", False)
-    greentracker = Tracker(vs, stream, color_lower, color_upper)
+    greentracker = Tracker(vs, stream, green_lower, green_upper)
 
     # keep looping until no more frames
     more_frames = True
     while greentracker.next_frame:
         greentracker.track()
         greentracker.show()
+        greentracker.get_frame()
 
     # if we are not using a video file, stop the camera video stream
     if not args.get("video", False):
@@ -75,6 +78,8 @@ class Tracker:
         self.height = height
         self.midx = int(width / 2)
         self.midy = int(height / 2)
+        self.xoffset = 0
+        self.yoffset = 0
 
     def get_frame(self):
         # grab the current frame
@@ -134,24 +139,19 @@ class Tracker:
             center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 
             # only proceed if the radius meets a minimum size
-            if radius > 10:
+            if radius > 30:
                 # draw the circle and centroid on the frame,
                 # then update the list of tracked points
                 cv2.circle(self.frame, (int(x), int(y)), int(radius),
                     (0, 255, 255), 2)
                 cv2.circle(self.frame, center, 5, (0, 0, 255), -1)
 
-        # update the points queue
-        if center is not None:
-
-            self.xoffset = int(center[0] - self.midx)
-            self.yoffset = int(self.midy - center[1])
-            print(center, self.xoffset, self.yoffset)
-
-        else:
-            self.xoffset = 0
-            self.yoffset = 0
-        self.get_frame()
+         
+                self.xoffset = int(center[0] - self.midx)
+                self.yoffset = int(self.midy - center[1])
+            else:
+                self.xoffset = 0
+                self.yoffset = 0
 
 if __name__ == '__main__':
     main()
