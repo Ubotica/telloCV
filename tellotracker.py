@@ -1,8 +1,8 @@
 """
-tellotracker
+tellotracker:
+Allows manual operation of the drone and demo tracking mode.
 
 Requires mplayer to record/save video.
-
 
 Controls:
 - tab to lift off
@@ -16,6 +16,9 @@ Controls:
   (video and photos will be saved to a timestamped file in ~/Pictures/)
 - Z to toggle camera zoom state
   (zoomed-in widescreen or high FOV 4:3)
+- T to toggle tracking
+@author Leonie Buckley and Jonathan Byrne
+@copyright 2018 see license file for details
 """
 
 import time

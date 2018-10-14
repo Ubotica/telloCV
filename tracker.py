@@ -1,11 +1,28 @@
 """
-A ball tracker class
+A tracker class for controlling the Tello:
+
+it computes a vector of the ball's direction from the center of the
+screen. The axes are shown below (assuming a frame width and height of 600x400):
++y                 (0,200) 
+            
+
+Y  (-300, 0)        (0,0)               (300,0)
+
+
+-Y                 (0,-200)
+-X                    X                    +X
+ 
 Based on the tutorial:
 https://www.pyimagesearch.com/2015/09/14/ball-tracking-with-opencv/
 
 Usage:
+for existing video:
 python tracker.py --video ball_tracking_example.mp4
-python ball_tracking.py
+For live feed:
+python tracking.py
+
+@author Leonie Buckley and Jonathan Byrne
+@copyright 2018 see license file for details
 """
 
 # import the necessary packages
