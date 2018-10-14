@@ -42,12 +42,15 @@ def main():
     args = vars(ap.parse_args())
 
     # define the lower and upper boundaries of the "green"
-    # ball in the HSV color space, then initialize the
-    # list of tracked points
-    color_lower = (29, 86, 6)
-    color_upper = (64, 255, 255)
-    green_lower = (50, 50, 50) 
+    # ball in the HSV color space. NB the hue range in 
+    # opencv is 180, normally it is 360 
+    green_lower = (50, 50, 50)
     green_upper = (70,255,255)
+    red_lower = (0, 50, 50) 
+    red_upper = (20,255,255)
+    blue_lower = (110, 50, 50)
+    upper_blue = (130,255,255)
+
 
     # if a video path was not supplied, grab the reference
     # to the webcam
@@ -114,6 +117,7 @@ class Tracker:
         return frame
 
     def show(self):
+        cv2.putText(self.frame,"Color:", (0, 35), cv2.FONT_HERSHEY_SIMPLEX, 1, 255, thickness=2)
         cv2.arrowedLine(self.frame, (self.midx, self.midy), 
                                     (self.midx + self.xoffset, self.midy - self.yoffset),
                                     (0,0,255), 5)
@@ -156,7 +160,7 @@ class Tracker:
             center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 
             # only proceed if the radius meets a minimum size
-            if radius > 30:
+            if radius > 10:
                 # draw the circle and centroid on the frame,
                 # then update the list of tracked points
                 cv2.circle(self.frame, (int(x), int(y)), int(radius),

@@ -204,6 +204,7 @@ def flightDataHandler(event, sender, data):
 def videoFrameHandler(event, sender, data):
     global video_player
     global video_recorder
+    # print(len(data))
     if video_player is None:
         cmd = [ 'mplayer', '-fps', '35', '-really-quiet' ]
         if wid is not None:
@@ -248,6 +249,7 @@ def main():
     print("Tello video WID:", wid)
 
     drone = tellopy.Tello()
+    drone.log.set_level(2)
     drone.connect()
     drone.start_video()
     drone.subscribe(drone.EVENT_FLIGHT_DATA, flightDataHandler)

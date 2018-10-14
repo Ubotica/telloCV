@@ -29,12 +29,14 @@ pip install dist/tellopy-*.dev*.whl --upgrade
 - Although tellos are very safe to operate, wear safety glasses as an added precaution
 - Do not fly over people
 - Memorize the controls *before* taking off
-- Always be ready to land the drone
+- Always be ready to land the drone (backspace)
 - If the program crashes restart it to regain control
+- if drone is going out of control just hit it and it will turn off.
 
 ## Tello lights
 
 - flashing blue - charging
+- solid blue - charged
 - flashing purple - booting up
 - flashing yellow fast - wifi network set up, waiting for connection
 - flashing yellow - User connected
