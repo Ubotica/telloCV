@@ -36,6 +36,7 @@ from subprocess import Popen, PIPE
 prev_flight_data = None
 video_player = None
 video_recorder = None
+tracking = False
 font = None
 wid = None
 date_fmt = '%Y-%m-%d_%H%M%S'
@@ -76,6 +77,14 @@ def palm_land(drone, speed):
         return
     drone.palm_land()
 
+def toggle_tracking(drone, speed):
+    global tracking
+    if speed == 0: # handle key up event
+        return
+    tracking = not(tracking)
+    print("tracking:", tracking)
+    return
+    
 def toggle_zoom(drone, speed):
     # In "video" mode the drone sends 1280x720 frames.
     # In "photo" mode it sends 2592x1936 (952x720) frames.
@@ -108,6 +117,7 @@ controls = {
     'tab': lambda drone, speed: drone.takeoff(),
     'backspace': lambda drone, speed: drone.land(),
     'p': palm_land,
+    't': toggle_tracking,
     'r': toggle_recording,
     'z': toggle_zoom,
     'enter': take_picture,
@@ -141,6 +151,12 @@ class FlightDataDisplay(object):
 def flight_data_mode(drone, *args):
     return (drone.zoom and "VID" or "PIC")
 
+def tracker_mode(drone, *args):
+    if tracking:
+        return "Y"
+    else:
+        return "N"
+
 def flight_data_recording(*args):
     return (video_recorder and "REC 00:00" or "")  # TODO: duration of recording
 
@@ -171,6 +187,7 @@ hud = [
     FlightDataDisplay('battery_percentage', 'BAT %3d%%'),
     FlightDataDisplay('wifi_strength', 'NET %3d%%'),
     FlightDataDisplay(None, 'CAM %s', update=flight_data_mode),
+    FlightDataDisplay(None, 'TRACK %s', update=tracker_mode),
     FlightDataDisplay(None, '%s', colour=(255, 0, 0), update=flight_data_recording),
 ]
 
@@ -178,8 +195,8 @@ def flightDataHandler(event, sender, data):
     global prev_flight_data
     text = str(data)
     if prev_flight_data != text:
-        update_hud(hud, sender, data)
         prev_flight_data = text
+    update_hud(hud, sender, data)
 
 def videoFrameHandler(event, sender, data):
     global video_player
@@ -251,6 +268,7 @@ def main():
                         if type(key_handler) == str:
                             getattr(drone, key_handler)(speed)
                         else:
+                            print(key_handler)
                             key_handler(drone, speed)
 
                 elif e.type == pygame.locals.KEYUP:
