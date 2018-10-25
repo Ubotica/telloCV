@@ -59,10 +59,7 @@ def main():
         while 1:
             time.sleep(0.01)  # loop with pygame.event.get() is too mush tight w/o some sleep
             for e in pygame.event.get():
-                tellotrack.key_event(e)
-
-
-                
+                tellotrack.key_event(e)                
     except e:
         print(str(e))
     finally:
@@ -74,8 +71,6 @@ def main():
 
 
 class TelloTracker():
-
-
 
     def __init__(self):
         self.prev_flight_data = None
@@ -124,7 +119,8 @@ class TelloTracker():
         'r': self.toggle_recording,
         'z': self.toggle_zoom,
         'enter': self.take_picture,
-        'return': self.take_picture}
+        'return': self.take_picture
+        }
         return controls
 
     def init_hud(self):
@@ -135,7 +131,8 @@ class TelloTracker():
         FlightDataDisplay('wifi_strength', 'NET %3d%%'),
         FlightDataDisplay(None, 'CAM %s', update=self.flight_data_mode),
         FlightDataDisplay(None, 'TRACK %s', update=self.tracker_mode),
-        FlightDataDisplay(None, '%s', colour=(255, 0, 0), update=self.flight_data_recording)]
+        FlightDataDisplay(None, '%s', colour=(255, 0, 0), update=self.flight_data_recording)
+        ]
         return hud
 
     def toggle_recording(self):
@@ -236,7 +233,8 @@ class TelloTracker():
             if keyname == 'escape':
                 self.drone.quit()
                 exit(0)
-            if keyname in controls:
+            if keyname in self.controls:
+                print("all good here")
                 key_handler = controls[keyname]
                 if type(key_handler) == str:
                     getattr(self.drone, key_handler)(self.speed)
@@ -247,7 +245,7 @@ class TelloTracker():
         elif e.type == pygame.locals.KEYUP:
             print('-' + pygame.key.name(e.key))
             keyname = pygame.key.name(e.key)
-            if keyname in controls:
+            if keyname in self.controls:
                 key_handler = controls[keyname]
                 if type(key_handler) == str:
                     getattr(self.drone, key_handler)(0)
