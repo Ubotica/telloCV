@@ -46,6 +46,9 @@ def main():
     pygame.display.set_mode((1280, 720))
     pygame.font.init()
 
+
+
+
     global font
     font = pygame.font.SysFont("dejavusansmono", 32)
 
@@ -53,7 +56,21 @@ def main():
     if 'window' in pygame.display.get_wm_info():
         wid = pygame.display.get_wm_info()['window']
     print("Tello video WID:", wid)
+
     tellotrack = TelloTracker()
+
+
+    # container for processing the packets into frames
+    container = av.open(tellotrack.drone.get_video_stream())
+    video_st = container.streams.video[0]
+
+
+    for packet in container.demux((video_st,)):
+        for frame in packet.decode():
+            #convert frame to cv2 image and show
+            image = cv2.cvtColor(numpy.array(frame.to_image()), cv2.COLOR_RGB2BGR)
+            cv2.imshow('frame', image)
+            key = cv2.waitKey(1) & 0xFF
 
     try:
         while 1:
@@ -70,6 +87,8 @@ def main():
         exit(1)
 
 
+
+
 class TelloTracker():
 
     def __init__(self):
@@ -81,19 +100,31 @@ class TelloTracker():
         self.wid = None
         self.date_fmt = '%Y-%m-%d_%H%M%S'
         self.speed = 30
+        print("init1")
+
         self.drone = tellopy.Tello()
+        print("init2")
+
         self.init_drone()
+        print("initbefore")
+
         self.hud = self.init_hud()
+        print("initafter")
+
         self.controls = self.init_controls()
 
 
     def init_drone(self):
         print("connecting to drone")
-        self.drone.log.set_level(2)
+        # self.drone.log.set_level(2)
         self.drone.connect()
+        print("con")
+
         self.drone.start_video()
+        print("sv")
+
         self.drone.subscribe(self.drone.EVENT_FLIGHT_DATA, self.flightDataHandler)
-        self.drone.subscribe(self.drone.EVENT_VIDEO_FRAME, self.videoFrameHandler)
+        #self.drone.subscribe(self.drone.EVENT_VIDEO_FRAME, self.videoFrameHandler)
         self.drone.subscribe(self.drone.EVENT_FILE_RECEIVED, self.handleFileReceived)
 
     def init_controls(self):
@@ -124,6 +155,7 @@ class TelloTracker():
         return controls
 
     def init_hud(self):
+        print("init hud")
         hud = [
         FlightDataDisplay('height', 'ALT %3d'),
         FlightDataDisplay('ground_speed', 'SPD %3d'),
@@ -252,26 +284,26 @@ class TelloTracker():
                 else:
                     key_handler(self.drone, 0)
 
-    def videoFrameHandler(self, event, sender, data):
-        # print(len(data))
-        if self.video_player is None:
-            cmd = [ 'mplayer', '-fps', '35', '-really-quiet' ]
-            if self.wid is not None:
-                cmd = cmd + [ '-wid', str(wid) ]
-            self.video_player = Popen(cmd + ['-'], stdin=PIPE)
+    # def videoFrameHandler(self, event, sender, data):
+    #     # print(len(data))
+    #     if self.video_player is None:
+    #         cmd = [ 'mplayer', '-fps', '35', '-really-quiet' ]
+    #         if self.wid is not None:
+    #             cmd = cmd + [ '-wid', str(wid) ]
+    #         self.video_player = Popen(cmd + ['-'], stdin=PIPE)
 
-        try:
-            self.video_player.stdin.write(data)
-        except IOError as err:
-            status_print(str(err))
-            self.video_player = None
+    #     try:
+    #         self.video_player.stdin.write(data)
+    #     except IOError as err:
+    #         status_print(str(err))
+    #         self.video_player = None
 
-        try:
-            if self.video_recorder:
-                self.video_recorder.stdin.write(data)
-        except IOError as err:
-            status_print(str(err))
-            self.video_recorder = None
+    #     try:
+    #         if self.video_recorder:
+    #             self.video_recorder.stdin.write(data)
+    #     except IOError as err:
+    #         status_print(str(err))
+    #         self.video_recorder = None
 
     def handleFileReceived(event, sender, data):
         global date_fmt
