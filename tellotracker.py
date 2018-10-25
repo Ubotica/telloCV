@@ -41,25 +41,7 @@ from tracker import Tracker
 from subprocess import Popen, PIPE
 
 def main():
-    pygame.init()
-    pygame.display.init()
-    pygame.display.set_mode((1280, 720))
-    pygame.font.init()
-
-
-
-
-    global font
-    font = pygame.font.SysFont("dejavusansmono", 32)
-
-    global wid
-    if 'window' in pygame.display.get_wm_info():
-        wid = pygame.display.get_wm_info()['window']
-    print("Tello video WID:", wid)
-
     tellotrack = TelloTracker()
-
-
     # container for processing the packets into frames
     container = av.open(tellotrack.drone.get_video_stream())
     video_st = container.streams.video[0]
@@ -67,27 +49,29 @@ def main():
 
     for packet in container.demux((video_st,)):
         for frame in packet.decode():
+            
             #convert frame to cv2 image and show
             image = cv2.cvtColor(numpy.array(frame.to_image()), cv2.COLOR_RGB2BGR)
+            tellotrack.write_hud(image)
             cv2.imshow('frame', image)
             key = cv2.waitKey(1) & 0xFF
 
-    try:
-        while 1:
-            time.sleep(0.01)  # loop with pygame.event.get() is too mush tight w/o some sleep
-            for e in pygame.event.get():
-                tellotrack.key_event(e)                
-    except e:
-        print(str(e))
-    finally:
-        print('Shutting down connection to drone...')
-        if tellotrack.video_recorder:
-            toggle_recording(drone, 1)
-        tellotrack.drone.quit()
-        exit(1)
+            # for e in pygame.event.get():
+            #     tellotrack.key_event(e)                
 
-
-
+    # try:
+    #     while 1:
+    #         time.sleep(0.01)  # loop with pygame.event.get() is too mush tight w/o some sleep
+    #         for e in pygame.event.get():
+    #             tellotrack.key_event(e)                
+    # except e:
+    #     print(str(e))
+    # finally:
+    #     print('Shutting down connection to drone...')
+    #     if tellotrack.video_recorder:
+    #         toggle_recording(drone, 1)
+    #     tellotrack.drone.quit()
+    #     exit(1)
 
 class TelloTracker():
 
@@ -100,29 +84,16 @@ class TelloTracker():
         self.wid = None
         self.date_fmt = '%Y-%m-%d_%H%M%S'
         self.speed = 30
-        print("init1")
-
         self.drone = tellopy.Tello()
-        print("init2")
-
         self.init_drone()
-        print("initbefore")
-
         self.hud = self.init_hud()
-        print("initafter")
-
         self.controls = self.init_controls()
-
 
     def init_drone(self):
         print("connecting to drone")
         # self.drone.log.set_level(2)
         self.drone.connect()
-        print("con")
-
         self.drone.start_video()
-        print("sv")
-
         self.drone.subscribe(self.drone.EVENT_FLIGHT_DATA, self.flightDataHandler)
         #self.drone.subscribe(self.drone.EVENT_VIDEO_FRAME, self.videoFrameHandler)
         self.drone.subscribe(self.drone.EVENT_FILE_RECEIVED, self.handleFileReceived)
@@ -154,8 +125,15 @@ class TelloTracker():
         }
         return controls
 
+    def write_hud(self, frame):
+        #cv2.putText(frame, "Height:", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), lineType=cv2.LINE_AA)
+        stats = self.prev_flight_data.split('|')
+        stats.append("Tracking:"+str(self.tracking))
+        for idx, stat in enumerate(stats):
+            text = stat.lstrip()
+            cv2.putText(frame, text, (50, idx * 50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), lineType=cv2.LINE_AA)
+
     def init_hud(self):
-        print("init hud")
         hud = [
         FlightDataDisplay('height', 'ALT %3d'),
         FlightDataDisplay('ground_speed', 'SPD %3d'),
@@ -256,7 +234,7 @@ class TelloTracker():
         text = str(data)
         if self.prev_flight_data != text:
             self.prev_flight_data = text
-        self.update_hud(sender, data)
+        #self.update_hud(sender, data)
 
     def key_event(self, e):
         if e.type == pygame.locals.KEYDOWN:
@@ -266,7 +244,6 @@ class TelloTracker():
                 self.drone.quit()
                 exit(0)
             if keyname in self.controls:
-                print("all good here")
                 key_handler = controls[keyname]
                 if type(key_handler) == str:
                     getattr(self.drone, key_handler)(self.speed)
@@ -336,8 +313,6 @@ class FlightDataDisplay(object):
         new_value = self._update(drone, data)
         if self._value != new_value:
             self._value = new_value
-            self._surface = font.render(self._format % (new_value,), True, self._colour)
-        return self._surface
-
+        return
 if __name__ == '__main__':
     main()
