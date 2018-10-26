@@ -23,7 +23,6 @@ Controls:
 
 import time
 import sys
-
 import imutils
 import numpy
 import tellopy
@@ -45,7 +44,8 @@ def main():
     # container for processing the packets into frames
     container = av.open(tellotrack.drone.get_video_stream())
     video_st = container.streams.video[0]
-
+    pygame.init()
+    pygame.display.set_mode()
 
     for packet in container.demux((video_st,)):
         for frame in packet.decode():
@@ -56,8 +56,8 @@ def main():
             cv2.imshow('frame', image)
             key = cv2.waitKey(1) & 0xFF
 
-            # for e in pygame.event.get():
-            #     tellotrack.key_event(e)                
+            for e in pygame.event.get():
+                tellotrack.key_event(e)                
 
     # try:
     #     while 1:
@@ -131,7 +131,7 @@ class TelloTracker():
         stats.append("Tracking:"+str(self.tracking))
         for idx, stat in enumerate(stats):
             text = stat.lstrip()
-            cv2.putText(frame, text, (50, idx * 50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), lineType=cv2.LINE_AA)
+            cv2.putText(frame, text, (0, idx * 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), lineType=cv2.LINE_AA)
 
     def init_hud(self):
         hud = [
@@ -244,7 +244,7 @@ class TelloTracker():
                 self.drone.quit()
                 exit(0)
             if keyname in self.controls:
-                key_handler = controls[keyname]
+                key_handler = self.controls[keyname]
                 if type(key_handler) == str:
                     getattr(self.drone, key_handler)(self.speed)
                 else:
@@ -255,7 +255,7 @@ class TelloTracker():
             print('-' + pygame.key.name(e.key))
             keyname = pygame.key.name(e.key)
             if keyname in self.controls:
-                key_handler = controls[keyname]
+                key_handler = self.controls[keyname]
                 if type(key_handler) == str:
                     getattr(self.drone, key_handler)(0)
                 else:
