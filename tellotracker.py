@@ -26,54 +26,40 @@ import sys
 import imutils
 import numpy
 import tellopy
-import pygame
-import pygame.display
-import pygame.key
-import pygame.locals
-import pygame.font
 import os
 import datetime
 import av
 import cv2
 
+from pynput import keyboard
 from tracker import Tracker
 from subprocess import Popen, PIPE
 
+
 def main():
+
     tellotrack = TelloTracker()
+
     # container for processing the packets into frames
     container = av.open(tellotrack.drone.get_video_stream())
     video_st = container.streams.video[0]
-    pygame.init()
-    pygame.display.set_mode()
 
     for packet in container.demux((video_st,)):
         for frame in packet.decode():
-            
-            #convert frame to cv2 image and show
-            image = cv2.cvtColor(numpy.array(frame.to_image()), cv2.COLOR_RGB2BGR)
+
+            # convert frame to cv2 image and show
+            image = cv2.cvtColor(numpy.array(
+                frame.to_image()), cv2.COLOR_RGB2BGR)
             tellotrack.write_hud(image)
             cv2.imshow('frame', image)
             key = cv2.waitKey(1) & 0xFF
+            # tellotrack.key_press()
+            # for e in pygame.event.get():
+            #     tellotrack.key_event(e)
 
-            for e in pygame.event.get():
-                tellotrack.key_event(e)                
 
-    # try:
-    #     while 1:
-    #         time.sleep(0.01)  # loop with pygame.event.get() is too mush tight w/o some sleep
-    #         for e in pygame.event.get():
-    #             tellotrack.key_event(e)                
-    # except e:
-    #     print(str(e))
-    # finally:
-    #     print('Shutting down connection to drone...')
-    #     if tellotrack.video_recorder:
-    #         toggle_recording(drone, 1)
-    #     tellotrack.drone.quit()
-    #     exit(1)
 
-class TelloTracker():
+class TelloTracker(object):
 
     def __init__(self):
         self.prev_flight_data = None
@@ -86,104 +72,131 @@ class TelloTracker():
         self.speed = 30
         self.drone = tellopy.Tello()
         self.init_drone()
-        self.hud = self.init_hud()
-        self.controls = self.init_controls()
+        self.init_controls()
 
     def init_drone(self):
         print("connecting to drone")
         # self.drone.log.set_level(2)
         self.drone.connect()
         self.drone.start_video()
-        self.drone.subscribe(self.drone.EVENT_FLIGHT_DATA, self.flightDataHandler)
+        self.drone.subscribe(self.drone.EVENT_FLIGHT_DATA,
+                             self.flightDataHandler)
         #self.drone.subscribe(self.drone.EVENT_VIDEO_FRAME, self.videoFrameHandler)
-        self.drone.subscribe(self.drone.EVENT_FILE_RECEIVED, self.handleFileReceived)
+        self.drone.subscribe(self.drone.EVENT_FILE_RECEIVED,
+                             self.handleFileReceived)
+
+    def on_press(self,keyname):
+        try:
+            keyname = str(keyname).strip('\'')
+            print('+' + keyname)
+            if keyname == 'Key.esc':
+                self.drone.quit()
+                exit(0)
+            if keyname in self.controls:
+                key_handler = self.controls[keyname]
+                if type(key_handler) == str:
+                    print("its a string")
+                    getattr(self.drone, key_handler)(self.speed)
+                else:
+                    print("its a function", key_handler)
+                    key_handler(self, self.speed)
+        except AttributeError:
+            print('special key {0} pressed'.format(keyname))
+
+    def on_release(self, keyname):
+        keyname = str(keyname).strip('\'')
+        print('-' + keyname)
+        if keyname in self.controls:
+            key_handler = self.controls[keyname]
+            if type(key_handler) == str:
+                getattr(self.drone, key_handler)(0)
+            else:
+                key_handler(self.drone, 0)
+
 
     def init_controls(self):
-        controls = {
-        'w': 'forward',
-        's': 'backward',
-        'a': 'left',
-        'd': 'right',
-        'space': 'up',
-        'left shift': 'down',
-        'right shift': 'down',
-        'q': 'counter_clockwise',
-        'e': 'clockwise',
-        # arrow keys for fast turns and altitude adjustments
-        'left': lambda drone, speed: self.drone.counter_clockwise(speed*2),
-        'right': lambda drone, speed: self.drone.clockwise(speed*2),
-        'up': lambda drone, speed: self.drone.up(speed*2),
-        'down': lambda drone, speed: self.drone.down(speed*2),
-        'tab': lambda drone, speed: self.drone.takeoff(),
-        'backspace': lambda drone, speed: drone.land(),
-        'p': self.palm_land,
-        't': self.toggle_tracking,
-        'r': self.toggle_recording,
-        'z': self.toggle_zoom,
-        'enter': self.take_picture,
-        'return': self.take_picture
+        self.controls = {
+            'w': 'forward',
+            's': 'backward',
+            'a': 'left',
+            'd': 'right',
+            'Key.space': 'up',
+            'Key.shift': 'down',
+            'Key.shift_r': 'down',
+            'q': 'counter_clockwise',
+            'e': 'clockwise',
+            'i': lambda drone, speed: self.drone.flip_forward(),
+            'k': lambda drone, speed: self.drone.flip_back(),
+            'j': lambda drone, speed: self.drone.flip_left(),
+            'l': lambda drone, speed: self.drone.flip_right(),            
+            # arrow keys for fast turns and altitude adjustments
+            'Key.left': lambda drone, speed: self.drone.counter_clockwise(speed * 2),
+            'Key.right': lambda drone, speed: self.drone.clockwise(speed * 2),
+            'Key.up': lambda drone, speed: self.drone.up(speed * 2),
+            'Key.down': lambda drone, speed: self.drone.down(speed * 2),
+            'Key.tab': lambda drone, speed: self.drone.takeoff(),
+            'Key.backspace': lambda drone, speed: self.drone.land(),
+            'p': lambda drone, speed: self.palm_land(speed),
+            't': lambda drone, speed: self.toggle_tracking(speed),
+            'r': lambda drone, speed: self.toggle_recording(speed),
+            'z': lambda drone, speed: self.toggle_zoom(speed),
+            'Key.enter': lambda drone, speed: self.take_picture(speeds),
         }
-        return controls
+        print("starting keylistener")
+        self.key_listener = keyboard.Listener(on_press=self.on_press,
+                                              on_release=self.on_release)
+        self.key_listener.start()
+        # self.key_listener.join()
 
     def write_hud(self, frame):
         #cv2.putText(frame, "Height:", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), lineType=cv2.LINE_AA)
         stats = self.prev_flight_data.split('|')
-        stats.append("Tracking:"+str(self.tracking))
+        stats.append("Tracking:" + str(self.tracking))
         for idx, stat in enumerate(stats):
             text = stat.lstrip()
-            cv2.putText(frame, text, (0, idx * 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), lineType=cv2.LINE_AA)
+            cv2.putText(frame, text, (0, idx * 30), cv2.FONT_HERSHEY_SIMPLEX,
+                        1.0, (255, 0, 0), lineType=cv2.LINE_AA)
 
-    def init_hud(self):
-        hud = [
-        FlightDataDisplay('height', 'ALT %3d'),
-        FlightDataDisplay('ground_speed', 'SPD %3d'),
-        FlightDataDisplay('battery_percentage', 'BAT %3d%%'),
-        FlightDataDisplay('wifi_strength', 'NET %3d%%'),
-        FlightDataDisplay(None, 'CAM %s', update=self.flight_data_mode),
-        FlightDataDisplay(None, 'TRACK %s', update=self.tracker_mode),
-        FlightDataDisplay(None, '%s', colour=(255, 0, 0), update=self.flight_data_recording)
-        ]
-        return hud
-
-    def toggle_recording(self):
-        if self.speed == 0:
+    def toggle_recording(self, speed):
+        if speed == 0:
             return
 
         if self.video_recorder:
             # already recording, so stop
             self.video_recorder.stdin.close()
-            status_print('Video saved to %s' % self.video_recorder.video_filename)
+            status_print('Video saved to %s' %
+                         self.video_recorder.video_filename)
             self.video_recorder = None
             return
 
         # start a new recording
         filename = '%s/Pictures/tello-%s.mp4' % (os.getenv('HOME'),
                                                  datetime.datetime.now().strftime(self.date_fmt))
-        
+
         cmd = ['mencoder', '-', '-vc', 'x264', '-fps', '30', '-ovc', 'copy', '-of', 'lavf',
                '-lavfopts', 'format=mp4', '-o', filename]
         self.video_recorder = Popen(cmd, stdin=PIPE)
         self.video_recorder.video_filename = filename
         status_print('Recording video to %s' % filename)
 
-    def take_picture(self):
-        if self.speed == 0:
+    def take_picture(self, speed):
+        if speed == 0:
             return
         self.drone.take_picture()
 
-    def palm_land(self):
-        if self.speed == 0:
+    def palm_land(self, speed):
+        if speed == 0:
             return
         self.drone.palm_land()
 
-    def toggle_tracking(self):
-        if self.speed == 0: # handle key up event
+    def toggle_tracking(self, speed):
+        if speed == 0:  # handle key up event
             return
         self.tracking = not(self.tracking)
         print("tracking:", self.tracking)
         return
-        
-    def toggle_zoom(self):
+
+    def toggle_zoom(self, speed):
         # In "video" mode the self.drone sends 1280x720 frames.
         # In "photo" mode it sends 2592x1936 (952x720) frames.
         # The video will always be centered in the window.
@@ -191,44 +204,16 @@ class TelloTracker():
         # each side for status information, which is ample.
         # Video mode is harder because then we need to abandon the 16:9 display size
         # if we want to put the HUD next to the video.
-        if self.speed == 0:
+        if speed == 0:
             return
         self.drone.set_video_mode(not self.drone.zoom)
-        pygame.display.get_surface().fill((0,0,0))
-        pygame.display.flip()
 
     def flight_data_mode(self, *args):
         return (self.drone.zoom and "VID" or "PIC")
 
-    def tracker_mode(self, *args):
-        if self.tracking:
-            return "Y"
-        else:
-            return "N"
-
     def flight_data_recording(self, *args):
-        return (self.video_recorder and "REC 00:00" or "")  # TODO: duration of recording
-
-    def update_hud(self, drone, flight_data):
-        (w,h) = (158,0) # width available on side of screen in 4:3 mode
-        blits = []
-        for element in self.hud:
-            surface = element.update(drone, flight_data)
-            if surface is None:
-                continue
-            blits += [(surface, (0, h))]
-            # w = max(w, surface.get_width())
-            h += surface.get_height()
-        h += 64  # add some padding
-        overlay = pygame.Surface((w, h), pygame.SRCALPHA)
-        overlay.fill((0,0,0)) # remove for mplayer overlay mode
-        for blit in blits:
-            overlay.blit(*blit)
-        pygame.display.get_surface().blit(overlay, (0,0))
-        pygame.display.update(overlay.get_rect())
-
-    def status_print(self, text):
-        pygame.display.set_caption(text)
+        # TODO: duration of recording
+        return (self.video_recorder and "REC 00:00" or "")
 
     def flightDataHandler(self, event, sender, data):
         text = str(data)
@@ -236,55 +221,10 @@ class TelloTracker():
             self.prev_flight_data = text
         #self.update_hud(sender, data)
 
-    def key_event(self, e):
-        if e.type == pygame.locals.KEYDOWN:
-            print('+' + pygame.key.name(e.key))
-            keyname = pygame.key.name(e.key)
-            if keyname == 'escape':
-                self.drone.quit()
-                exit(0)
-            if keyname in self.controls:
-                key_handler = self.controls[keyname]
-                if type(key_handler) == str:
-                    getattr(self.drone, key_handler)(self.speed)
-                else:
-                    print(key_handler)
-                    key_handler(self.drone, self.speed)
-
-        elif e.type == pygame.locals.KEYUP:
-            print('-' + pygame.key.name(e.key))
-            keyname = pygame.key.name(e.key)
-            if keyname in self.controls:
-                key_handler = self.controls[keyname]
-                if type(key_handler) == str:
-                    getattr(self.drone, key_handler)(0)
-                else:
-                    key_handler(self.drone, 0)
-
-    # def videoFrameHandler(self, event, sender, data):
-    #     # print(len(data))
-    #     if self.video_player is None:
-    #         cmd = [ 'mplayer', '-fps', '35', '-really-quiet' ]
-    #         if self.wid is not None:
-    #             cmd = cmd + [ '-wid', str(wid) ]
-    #         self.video_player = Popen(cmd + ['-'], stdin=PIPE)
-
-    #     try:
-    #         self.video_player.stdin.write(data)
-    #     except IOError as err:
-    #         status_print(str(err))
-    #         self.video_player = None
-
-    #     try:
-    #         if self.video_recorder:
-    #             self.video_recorder.stdin.write(data)
-    #     except IOError as err:
-    #         status_print(str(err))
-    #         self.video_recorder = None
-
     def handleFileReceived(event, sender, data):
         global date_fmt
-        # Create a file in ~/Pictures/ to receive image data from the self.drone.
+        # Create a file in ~/Pictures/ to receive image data from the
+        # self.drone.
         path = '%s/Pictures/tello-%s.jpeg' % (
             os.getenv('HOME'),
             datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S'))
@@ -292,27 +232,5 @@ class TelloTracker():
             fd.write(data)
         status_print('Saved photo to %s' % path)
 
-class FlightDataDisplay(object):
-    # previous flight data value and surface to overlay
-    _value = None
-    _surface = None
-    # function (self.drone, data) => new value
-    # default is lambda self.drone,data: getattr(data, self._key)
-    _update = None
-    def __init__(self, key, format, colour=(255,255,255), update=None):
-        self._key = key
-        self._format = format
-        self._colour = colour
-
-        if update:
-            self._update = update
-        else:
-            self._update = lambda drone, data: getattr(data, self._key)
-
-    def update(self, drone, data):
-        new_value = self._update(drone, data)
-        if self._value != new_value:
-            self._value = new_value
-        return
 if __name__ == '__main__':
     main()
