@@ -95,10 +95,8 @@ class TelloTracker(object):
             if keyname in self.controls:
                 key_handler = self.controls[keyname]
                 if type(key_handler) == str:
-                    print("its a string")
                     getattr(self.drone, key_handler)(self.speed)
                 else:
-                    print("its a function", key_handler)
                     key_handler(self, self.speed)
         except AttributeError:
             print('special key {0} pressed'.format(keyname))
@@ -142,7 +140,7 @@ class TelloTracker(object):
             'z': lambda drone, speed: self.toggle_zoom(speed),
             'Key.enter': lambda drone, speed: self.take_picture(speeds),
         }
-        print("starting keylistener")
+        print("starting key listener")
         self.key_listener = keyboard.Listener(on_press=self.on_press,
                                               on_release=self.on_release)
         self.key_listener.start()
