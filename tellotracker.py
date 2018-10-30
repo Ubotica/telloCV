@@ -40,31 +40,24 @@ def main():
 
     tellotrack = TelloTracker()
 
-    # container for processing the packets into frames
-    container = av.open(tellotrack.drone.get_video_stream())
-    video_st = container.streams.video[0]
-
-    for packet in container.demux((video_st,)):
+    for packet in tellotrack.container.demux((tellotrack.vid_stream,)):
         for frame in packet.decode():
 
             # convert frame to cv2 image and show
             image = cv2.cvtColor(numpy.array(
                 frame.to_image()), cv2.COLOR_RGB2BGR)
             tellotrack.write_hud(image)
+            if tellotrack.record:
+                tellotrack.record_vid(frame)
             cv2.imshow('frame', image)
             key = cv2.waitKey(1) & 0xFF
-            # tellotrack.key_press()
-            # for e in pygame.event.get():
-            #     tellotrack.key_event(e)
-
-
 
 class TelloTracker(object):
 
     def __init__(self):
         self.prev_flight_data = None
         self.video_player = None
-        self.video_recorder = None
+        self.record = False
         self.tracking = False
         self.font = None
         self.wid = None
@@ -73,6 +66,13 @@ class TelloTracker(object):
         self.drone = tellopy.Tello()
         self.init_drone()
         self.init_controls()
+        # container for processing the packets into frames
+        self.container = av.open(self.drone.get_video_stream())
+        self.vid_stream = self.container.streams.video[0]
+        self.out_file = None
+        self.out_stream = None
+        self.out_name = None
+        self.start_time = time.time()
 
     def init_drone(self):
         print("connecting to drone")
@@ -81,7 +81,6 @@ class TelloTracker(object):
         self.drone.start_video()
         self.drone.subscribe(self.drone.EVENT_FLIGHT_DATA,
                              self.flightDataHandler)
-        #self.drone.subscribe(self.drone.EVENT_VIDEO_FRAME, self.videoFrameHandler)
         self.drone.subscribe(self.drone.EVENT_FILE_RECEIVED,
                              self.handleFileReceived)
 
@@ -97,7 +96,7 @@ class TelloTracker(object):
                 if type(key_handler) == str:
                     getattr(self.drone, key_handler)(self.speed)
                 else:
-                    key_handler(self, self.speed)
+                    key_handler(self.speed)
         except AttributeError:
             print('special key {0} pressed'.format(keyname))
 
@@ -106,11 +105,10 @@ class TelloTracker(object):
         print('-' + keyname)
         if keyname in self.controls:
             key_handler = self.controls[keyname]
-            if type(key_handler) == str:
-                getattr(self.drone, key_handler)(0)
+            if type(key_handler) ==  str:
+                getattr(self.drone,key_handler)(0)
             else:
-                key_handler(self.drone, 0)
-
+                key_handler(0)
 
     def init_controls(self):
         self.controls = {
@@ -123,22 +121,22 @@ class TelloTracker(object):
             'Key.shift_r': 'down',
             'q': 'counter_clockwise',
             'e': 'clockwise',
-            'i': lambda drone, speed: self.drone.flip_forward(),
-            'k': lambda drone, speed: self.drone.flip_back(),
-            'j': lambda drone, speed: self.drone.flip_left(),
-            'l': lambda drone, speed: self.drone.flip_right(),            
+            'i': lambda speed: self.drone.flip_forward(),
+            'k': lambda speed: self.drone.flip_back(),
+            'j': lambda speed: self.drone.flip_left(),
+            'l': lambda speed: self.drone.flip_right(),            
             # arrow keys for fast turns and altitude adjustments
-            'Key.left': lambda drone, speed: self.drone.counter_clockwise(speed * 2),
-            'Key.right': lambda drone, speed: self.drone.clockwise(speed * 2),
-            'Key.up': lambda drone, speed: self.drone.up(speed * 2),
-            'Key.down': lambda drone, speed: self.drone.down(speed * 2),
-            'Key.tab': lambda drone, speed: self.drone.takeoff(),
-            'Key.backspace': lambda drone, speed: self.drone.land(),
-            'p': lambda drone, speed: self.palm_land(speed),
-            't': lambda drone, speed: self.toggle_tracking(speed),
-            'r': lambda drone, speed: self.toggle_recording(speed),
-            'z': lambda drone, speed: self.toggle_zoom(speed),
-            'Key.enter': lambda drone, speed: self.take_picture(speeds),
+            'Key.left': lambda speed: self.drone.counter_clockwise(speed * 2),
+            'Key.right': lambda speed: self.drone.clockwise(speed * 2),
+            'Key.up': lambda speed: self.drone.up(speed * 2),
+            'Key.down': lambda speed: self.drone.down(speed * 2),
+            'Key.tab': lambda speed: self.drone.takeoff(),
+            'Key.backspace': lambda speed: self.drone.land(),
+            'p': lambda speed: self.palm_land(speed),
+            't': lambda speed: self.toggle_tracking(speed),
+            'r': lambda speed: self.toggle_recording(speed),
+            'z': lambda speed: self.toggle_zoom(speed),
+            'Key.enter': lambda speed: self.take_picture(speed)
         }
         print("starting key listener")
         self.key_listener = keyboard.Listener(on_press=self.on_press,
@@ -147,9 +145,10 @@ class TelloTracker(object):
         # self.key_listener.join()
 
     def write_hud(self, frame):
-        #cv2.putText(frame, "Height:", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), lineType=cv2.LINE_AA)
         stats = self.prev_flight_data.split('|')
         stats.append("Tracking:" + str(self.tracking))
+        stats.append(self.flight_data_mode())
+        stats.append(self.flight_data_recording())
         for idx, stat in enumerate(stats):
             text = stat.lstrip()
             cv2.putText(frame, text, (0, idx * 30), cv2.FONT_HERSHEY_SIMPLEX,
@@ -158,24 +157,42 @@ class TelloTracker(object):
     def toggle_recording(self, speed):
         if speed == 0:
             return
+        self.record = not(self.record)
+        print("Record:", self.record)
 
-        if self.video_recorder:
-            # already recording, so stop
-            self.video_recorder.stdin.close()
-            status_print('Video saved to %s' %
-                         self.video_recorder.video_filename)
-            self.video_recorder = None
-            return
+        if self.record:
+            self.out_name = '%s/Pictures/tello-%s.mp4' % (os.getenv('HOME'),
+                             datetime.datetime.now().strftime(self.date_fmt))
+            self.out_file = av.open(self.out_name, 'w')
+            #self.start_time = time.time()
+            self.out_stream = self.out_file.add_stream('mpeg4', self.vid_stream.rate)
+            self.out_stream.pix_fmt = 'yuv420p'
+            self.out_stream.width = self.vid_stream.width
+            self.out_stream.height = self.vid_stream.height
 
-        # start a new recording
-        filename = '%s/Pictures/tello-%s.mp4' % (os.getenv('HOME'),
-                                                 datetime.datetime.now().strftime(self.date_fmt))
+        if not self.record:
+            print("Video saved to ",self.out_name)
+            self.out_file.close()
+            self.out_stream = None
 
-        cmd = ['mencoder', '-', '-vc', 'x264', '-fps', '30', '-ovc', 'copy', '-of', 'lavf',
-               '-lavfopts', 'format=mp4', '-o', filename]
-        self.video_recorder = Popen(cmd, stdin=PIPE)
-        self.video_recorder.video_filename = filename
-        status_print('Recording video to %s' % filename)
+    def record_vid(self, frame):
+        """
+        convert frames to packets and write to file
+        """ 
+        new_frame = av.VideoFrame(width=frame.width, height=frame.height, format=frame.format.name)
+        for i in range(len(frame.planes)):
+            new_frame.planes[i].update(frame.planes[i])
+        pkt = None
+        try:
+            pkt = self.out_stream.encode(new_frame)
+        except Exception as err:
+            print("encoding failed{0}".format(err))
+        if pkt is not None:
+            try:
+                self.out_file.mux(pkt)
+            except Exception:
+                print('mux failed: ' + str(pkt))
+
 
     def take_picture(self, speed):
         if speed == 0:
@@ -210,17 +227,19 @@ class TelloTracker(object):
         return (self.drone.zoom and "VID" or "PIC")
 
     def flight_data_recording(self, *args):
-        # TODO: duration of recording
-        return (self.video_recorder and "REC 00:00" or "")
+        if self.record:
+            diff = int(time.time() - self.start_time)
+            mins, secs = divmod(diff, 60)
+            return "REC {:02d}:{:2d}".format(mins, secs)
+        else:
+            return ""
 
     def flightDataHandler(self, event, sender, data):
         text = str(data)
         if self.prev_flight_data != text:
             self.prev_flight_data = text
-        #self.update_hud(sender, data)
 
-    def handleFileReceived(event, sender, data):
-        global date_fmt
+    def handleFileReceived(self, event, sender, data):
         # Create a file in ~/Pictures/ to receive image data from the
         # self.drone.
         path = '%s/Pictures/tello-%s.jpeg' % (
@@ -228,7 +247,7 @@ class TelloTracker(object):
             datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S'))
         with open(path, 'wb') as fd:
             fd.write(data)
-        status_print('Saved photo to %s' % path)
+        print('Saved photo to %s' % path)
 
 if __name__ == '__main__':
     main()

@@ -16,8 +16,9 @@ def encode(frame, ovstream, output):
     """
     try:
         pkt = ovstream.encode(frame)
-    except Exception:
-        return False
+    except Exception as err:
+        print("encoding failed{0}".format(err))
+
     if pkt is not None:
         try:
             output.mux(pkt)
@@ -60,7 +61,7 @@ def main():
                 encode(new_frame, ovstream, output)
                 counter += 1
                 print("Frames encoded:", counter)
-                if counter > 1300:
+                if counter > 300:
                     output.close()
                     save == False
 
