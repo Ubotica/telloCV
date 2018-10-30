@@ -10,6 +10,7 @@ import numpy
 import tellopy
 import cv2
 
+
 def encode(frame, ovstream, output):
     """
     convert frames to packets and write to file
@@ -25,6 +26,7 @@ def encode(frame, ovstream, output):
         except Exception:
             print('mux failed: ' + str(pkt))
     return True
+
 
 def main():
     # Set up tello streaming
@@ -48,14 +50,16 @@ def main():
     save = True
     for packet in container.demux((video_st,)):
         for frame in packet.decode():
-            #convert frame to cv2 image and show
-            image = cv2.cvtColor(numpy.array(frame.to_image()), cv2.COLOR_RGB2BGR)
+            # convert frame to cv2 image and show
+            image = cv2.cvtColor(numpy.array(
+                frame.to_image()), cv2.COLOR_RGB2BGR)
             cv2.imshow('frame', image)
             key = cv2.waitKey(1) & 0xFF
 
             # save initial 1300 frames
             if save:
-                new_frame = av.VideoFrame(width=frame.width, height=frame.height, format=frame.format.name)
+                new_frame = av.VideoFrame(
+                    width=frame.width, height=frame.height, format=frame.format.name)
                 for i in range(len(frame.planes)):
                     new_frame.planes[i].update(frame.planes[i])
                 encode(new_frame, ovstream, output)

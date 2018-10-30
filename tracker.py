@@ -35,23 +35,23 @@ import cv2
 import imutils
 import time
 
+
 def main():
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("-v", "--video",
-        help="path to the (optional) video file")
+                    help="path to the (optional) video file")
     args = vars(ap.parse_args())
 
     # define the lower and upper boundaries of the "green"
-    # ball in the HSV color space. NB the hue range in 
-    # opencv is 180, normally it is 360 
+    # ball in the HSV color space. NB the hue range in
+    # opencv is 180, normally it is 360
     green_lower = (50, 50, 50)
-    green_upper = (70,255,255)
-    red_lower = (0, 50, 50) 
-    red_upper = (20,255,255)
+    green_upper = (70, 255, 255)
+    red_lower = (0, 50, 50)
+    red_upper = (20, 255, 255)
     blue_lower = (110, 50, 50)
-    upper_blue = (130,255,255)
-
+    upper_blue = (130, 255, 255)
 
     # if a video path was not supplied, grab the reference
     # to the webcam
@@ -90,6 +90,7 @@ def main():
     # close all windows
     cv2.destroyAllWindows()
 
+
 def get_frame(vs, stream):
     # grab the current frame
     frame = vs.read()
@@ -99,7 +100,7 @@ def get_frame(vs, stream):
     # then we have reached the end of the video
     if frame is None:
         return None
-    else:        
+    else:
         frame = imutils.resize(frame, width=600)
         return frame
 
@@ -115,6 +116,7 @@ def show(frame):
 
 
 class Tracker:
+
     def __init__(self, height, width, color_lower, color_upper):
         self.color_lower = color_lower
         self.color_upper = color_upper
@@ -125,12 +127,11 @@ class Tracker:
         self.xoffset = 0
         self.yoffset = 0
 
-
     def draw_arrows(self, frame):
-        cv2.putText(frame,"Color:", (0, 35), cv2.FONT_HERSHEY_SIMPLEX, 1, 255, thickness=2)
-        cv2.arrowedLine(frame, (self.midx, self.midy), 
-                               (self.midx + self.xoffset, self.midy - self.yoffset),
-                               (0,0,255), 5)
+        #cv2.putText(frame,"Color:", (0, 35), cv2.FONT_HERSHEY_SIMPLEX, 1, 255, thickness=2)
+        cv2.arrowedLine(frame, (self.midx, self.midy),
+                        (self.midx + self.xoffset, self.midy - self.yoffset),
+                        (0, 0, 255), 5)
         return frame
 
     def track(self, frame):
@@ -149,7 +150,7 @@ class Tracker:
         # find contours in the mask and initialize the current
         # (x, y) center of the ball
         cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_SIMPLE)
+                                cv2.CHAIN_APPROX_SIMPLE)
         cnts = cnts[0]
         center = None
 
@@ -168,10 +169,9 @@ class Tracker:
                 # draw the circle and centroid on the frame,
                 # then update the list of tracked points
                 cv2.circle(frame, (int(x), int(y)), int(radius),
-                    (0, 255, 255), 2)
+                           (0, 255, 255), 2)
                 cv2.circle(frame, center, 5, (0, 0, 255), -1)
 
-         
                 self.xoffset = int(center[0] - self.midx)
                 self.yoffset = int(self.midy - center[1])
             else:
