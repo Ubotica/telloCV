@@ -1,5 +1,6 @@
 """
-A tracker class for controlling the Tello:
+A tracker class for controlling the Tello and some sample code for showing how
+it works. you can test it using your webcam or a video file to make sure it works.
 
 it computes a vector of the ball's direction from the center of the
 screen. The axes are shown below (assuming a frame width and height of 600x400):
@@ -64,14 +65,19 @@ def main():
     # allow the camera or video file to warm up
     time.sleep(2.0)
     stream = args.get("video", False)
-    greentracker = Tracker(vs, stream, green_lower, green_upper)
+    frame = get_frame(vs, stream)
+    height, width, depth = frame.shape
+    greentracker = Tracker(height, width, green_lower, green_upper)
 
     # keep looping until no more frames
     more_frames = True
-    while greentracker.next_frame:
-        greentracker.track()
-        greentracker.show()
-        greentracker.get_frame()
+    while more_frames:
+        greentracker.track(frame)
+        frame = greentracker.draw_arrows(frame)
+        show(frame)
+        frame = get_frame(vs, stream)
+        if frame is None:
+            more_frames = False
 
     # if we are not using a video file, stop the camera video stream
     if not args.get("video", False):
@@ -84,16 +90,34 @@ def main():
     # close all windows
     cv2.destroyAllWindows()
 
+def get_frame(vs, stream):
+    # grab the current frame
+    frame = vs.read()
+    # handle the frame from VideoCapture or VideoStream
+    frame = frame[1] if stream else frame
+    # if we are viewing a video and we did not grab a frame,
+    # then we have reached the end of the video
+    if frame is None:
+        return None
+    else:        
+        frame = imutils.resize(frame, width=600)
+        return frame
+
+
+def show(frame):
+    # show the frame to our screen
+    cv2.imshow("Frame", frame)
+    key = cv2.waitKey(1) & 0xFF
+
+    # if the 'q' key is pressed, stop the loop
+    if key == ord("q"):
+        exit()
+
+
 class Tracker:
-    def __init__(self, vs, stream, color_lower, color_upper):
-        self.vs = vs
-        self.stream = stream
+    def __init__(self, height, width, color_lower, color_upper):
         self.color_lower = color_lower
         self.color_upper = color_upper
-        self.next_frame = True
-        self.frame = None
-        self.get_frame()
-        height, width, depth = self.frame.shape
         self.width = width
         self.height = height
         self.midx = int(width / 2)
@@ -101,38 +125,18 @@ class Tracker:
         self.xoffset = 0
         self.yoffset = 0
 
-    def get_frame(self):
-        # grab the current frame
-        frame = self.vs.read()
-        # handle the frame from VideoCapture or VideoStream
-        frame = frame[1] if self.stream else frame
-        # if we are viewing a video and we did not grab a frame,
-        # then we have reached the end of the video
-        if frame is None:
-            self.next_frame = False
-        else:        
-            frame = imutils.resize(frame, width=600)
-            self.frame = frame
 
+    def draw_arrows(self, frame):
+        cv2.putText(frame,"Color:", (0, 35), cv2.FONT_HERSHEY_SIMPLEX, 1, 255, thickness=2)
+        cv2.arrowedLine(frame, (self.midx, self.midy), 
+                               (self.midx + self.xoffset, self.midy - self.yoffset),
+                               (0,0,255), 5)
         return frame
 
-    def show(self):
-        cv2.putText(self.frame,"Color:", (0, 35), cv2.FONT_HERSHEY_SIMPLEX, 1, 255, thickness=2)
-        cv2.arrowedLine(self.frame, (self.midx, self.midy), 
-                                    (self.midx + self.xoffset, self.midy - self.yoffset),
-                                    (0,0,255), 5)
-        # show the frame to our screen
-        cv2.imshow("Frame", self.frame)
-        key = cv2.waitKey(1) & 0xFF
-
-        # if the 'q' key is pressed, stop the loop
-        if key == ord("q"):
-            self.next_frame = False
-
-    def track(self):
+    def track(self, frame):
         # resize the frame, blur it, and convert it to the HSV
         # color space
-        blurred = cv2.GaussianBlur(self.frame, (11, 11), 0)
+        blurred = cv2.GaussianBlur(frame, (11, 11), 0)
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
         # construct a mask for the color then perform
@@ -146,7 +150,7 @@ class Tracker:
         # (x, y) center of the ball
         cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
             cv2.CHAIN_APPROX_SIMPLE)
-        cnts = cnts[0] if imutils.is_cv2() else cnts[1]
+        cnts = cnts[0]
         center = None
 
         # only proceed if at least one contour was found
@@ -163,9 +167,9 @@ class Tracker:
             if radius > 10:
                 # draw the circle and centroid on the frame,
                 # then update the list of tracked points
-                cv2.circle(self.frame, (int(x), int(y)), int(radius),
+                cv2.circle(frame, (int(x), int(y)), int(radius),
                     (0, 255, 255), 2)
-                cv2.circle(self.frame, center, 5, (0, 0, 255), -1)
+                cv2.circle(frame, center, 5, (0, 0, 255), -1)
 
          
                 self.xoffset = int(center[0] - self.midx)
@@ -173,6 +177,10 @@ class Tracker:
             else:
                 self.xoffset = 0
                 self.yoffset = 0
+        else:
+            self.xoffset = 0
+            self.yoffset = 0
+        return self.xoffset, self.yoffset
 
 if __name__ == '__main__':
     main()
