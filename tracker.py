@@ -4,15 +4,15 @@ it works. you can test it using your webcam or a video file to make sure it work
 
 it computes a vector of the ball's direction from the center of the
 screen. The axes are shown below (assuming a frame width and height of 600x400):
-+y                 (0,200) 
-            
++y                 (0,200)
+
 
 Y  (-300, 0)        (0,0)               (300,0)
 
 
 -Y                 (0,-200)
 -X                    X                    +X
- 
+
 Based on the tutorial:
 https://www.pyimagesearch.com/2015/09/14/ball-tracking-with-opencv/
 
@@ -27,46 +27,43 @@ python tracking.py
 """
 
 # import the necessary packages
-from collections import deque
-from imutils.video import VideoStream
-import numpy as np
 import argparse
+import time
 import cv2
 import imutils
-import time
-
+from imutils.video import VideoStream
 
 def main():
-    # construct the argument parse and parse the arguments
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-v", "--video",
-                    help="path to the (optional) video file")
-    args = vars(ap.parse_args())
+    """Handles inpur from file or stream, tests the tracker class"""
+    arg_parse = argparse.ArgumentParser()
+    arg_parse.add_argument("-v", "--video",
+                           help="path to the (optional) video file")
+    args = vars(arg_parse.parse_args())
 
     # define the lower and upper boundaries of the "green"
     # ball in the HSV color space. NB the hue range in
     # opencv is 180, normally it is 360
     green_lower = (50, 50, 50)
     green_upper = (70, 255, 255)
-    red_lower = (0, 50, 50)
-    red_upper = (20, 255, 255)
-    blue_lower = (110, 50, 50)
-    upper_blue = (130, 255, 255)
+    # red_lower = (0, 50, 50)
+    # red_upper = (20, 255, 255)
+    # blue_lower = (110, 50, 50)
+    # upper_blue = (130, 255, 255)
 
     # if a video path was not supplied, grab the reference
     # to the webcam
     if not args.get("video", False):
-        vs = VideoStream(src=0).start()
+        vid_stream = VideoStream(src=0).start()
 
     # otherwise, grab a reference to the video file
     else:
-        vs = cv2.VideoCapture(args["video"])
+        vid_stream = cv2.VideoCapture(args["video"])
 
     # allow the camera or video file to warm up
     time.sleep(2.0)
     stream = args.get("video", False)
-    frame = get_frame(vs, stream)
-    height, width, depth = frame.shape
+    frame = get_frame(vid_stream, stream)
+    height, width = frame.shape[0], frame.shape[1]
     greentracker = Tracker(height, width, green_lower, green_upper)
 
     # keep looping until no more frames
@@ -75,25 +72,25 @@ def main():
         greentracker.track(frame)
         frame = greentracker.draw_arrows(frame)
         show(frame)
-        frame = get_frame(vs, stream)
+        frame = get_frame(vid_stream, stream)
         if frame is None:
             more_frames = False
 
     # if we are not using a video file, stop the camera video stream
     if not args.get("video", False):
-        vs.stop()
+        vid_stream.stop()
 
     # otherwise, release the camera
     else:
-        vs.release()
+        vid_stream.release()
 
     # close all windows
     cv2.destroyAllWindows()
 
 
-def get_frame(vs, stream):
-    # grab the current frame
-    frame = vs.read()
+def get_frame(vid_stream, stream):
+    """grab the current video frame"""
+    frame = vid_stream.read()
     # handle the frame from VideoCapture or VideoStream
     frame = frame[1] if stream else frame
     # if we are viewing a video and we did not grab a frame,
@@ -106,7 +103,7 @@ def get_frame(vs, stream):
 
 
 def show(frame):
-    # show the frame to our screen
+    """show the frame to cv2 window"""
     cv2.imshow("Frame", frame)
     key = cv2.waitKey(1) & 0xFF
 
@@ -116,18 +113,21 @@ def show(frame):
 
 
 class Tracker:
+    """
+    A basic color tracker, it will look for colors in a range and
+    create an x and y offset valuefrom the midpoint
+    """
 
     def __init__(self, height, width, color_lower, color_upper):
         self.color_lower = color_lower
         self.color_upper = color_upper
-        self.width = width
-        self.height = height
         self.midx = int(width / 2)
         self.midy = int(height / 2)
         self.xoffset = 0
         self.yoffset = 0
 
     def draw_arrows(self, frame):
+        """Show the direction vector output in the cv2 window"""
         #cv2.putText(frame,"Color:", (0, 35), cv2.FONT_HERSHEY_SIMPLEX, 1, 255, thickness=2)
         cv2.arrowedLine(frame, (self.midx, self.midy),
                         (self.midx + self.xoffset, self.midy - self.yoffset),
@@ -135,6 +135,7 @@ class Tracker:
         return frame
 
     def track(self, frame):
+        """Simple HSV color space tracking"""
         # resize the frame, blur it, and convert it to the HSV
         # color space
         blurred = cv2.GaussianBlur(frame, (11, 11), 0)
