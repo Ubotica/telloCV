@@ -7,13 +7,13 @@ You need to have opencv installed and the following python modules for the tello
 apt
 
 ```
-sudo apt install sudo apt-get install libopencv-dev python3-opencv
+sudo apt install sudo libopencv-dev python3-opencv
 ```
 
 pip3:
 
 ```
-sudo pip3 install imutils pygame
+sudo pip3 install imutils pynput
 ```
 
 you need to build tellopy from source as the :
