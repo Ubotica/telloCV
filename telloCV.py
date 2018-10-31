@@ -137,8 +137,8 @@ class TelloCV(object):
             'j': lambda speed: self.drone.flip_left(),
             'l': lambda speed: self.drone.flip_right(),
             # arrow keys for fast turns and altitude adjustments
-            'Key.left': lambda speed: self.drone.counter_clockwise(60),
-            'Key.right': lambda speed: self.drone.clockwise(60),
+            'Key.left': lambda speed: self.drone.counter_clockwise(speed),
+            'Key.right': lambda speed: self.drone.clockwise(speed),
             'Key.up': lambda speed: self.drone.up(speed),
             'Key.down': lambda speed: self.drone.down(speed),
             'Key.tab': lambda speed: self.drone.takeoff(),
