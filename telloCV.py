@@ -52,7 +52,7 @@ class TelloCV(object):
         self.tracking = False
         self.keydown = False
         self.date_fmt = '%Y-%m-%d_%H%M%S'
-        self.speed = 30
+        self.speed = 50
         self.drone = tellopy.Tello()
         self.init_drone()
         self.init_controls()
@@ -66,12 +66,13 @@ class TelloCV(object):
         self.start_time = time.time()
 
         # tracking a color
-        green_lower = (50, 50, 50)
-        green_upper = (70, 255, 255)
-        # red_lower = (0, 50, 50)
+        green_lower = (30, 50, 50)
+        green_upper = (80, 255, 255)
+        #red_lower = (0, 50, 50)
         # red_upper = (20, 255, 255)
         # blue_lower = (110, 50, 50)
         # upper_blue = (130, 255, 255)
+        self.track_cmd = ""
         self.tracker = Tracker(self.vid_stream.height,
                                self.vid_stream.width,
                                green_lower, green_upper)
@@ -136,10 +137,10 @@ class TelloCV(object):
             'j': lambda speed: self.drone.flip_left(),
             'l': lambda speed: self.drone.flip_right(),
             # arrow keys for fast turns and altitude adjustments
-            'Key.left': lambda speed: self.drone.counter_clockwise(speed * 2),
-            'Key.right': lambda speed: self.drone.clockwise(speed * 2),
-            'Key.up': lambda speed: self.drone.up(speed * 2),
-            'Key.down': lambda speed: self.drone.down(speed * 2),
+            'Key.left': lambda speed: self.drone.counter_clockwise(speed),
+            'Key.right': lambda speed: self.drone.clockwise(speed),
+            'Key.up': lambda speed: self.drone.up(speed),
+            'Key.down': lambda speed: self.drone.down(speed),
             'Key.tab': lambda speed: self.drone.takeoff(),
             'Key.backspace': lambda speed: self.drone.land(),
             'p': lambda speed: self.palm_land(speed),
@@ -164,16 +165,28 @@ class TelloCV(object):
         xoff, yoff = self.tracker.track(image)
         image = self.tracker.draw_arrows(image)
 
-        distance = 200
+        distance = 100
+        cmd = ""
         if self.tracking:
             if xoff < -distance:
-                self.drone.counter_clockwise(self.speed * 2)
-            if xoff > distance:
-                self.drone.clockwise(self.speed * 2)
-            if yoff < -distance:
-                self.drone.down(self.speed)
-            if xoff > distance:
-                self.drone.up(self.speed)
+                cmd = "counter_clockwise"
+            elif xoff > distance:
+                cmd = "clockwise"
+            elif yoff < -distance:
+                cmd = "down"
+            elif yoff > distance:
+                cmd = "up"
+            else:
+                if self.track_cmd is not "":
+                    getattr(self.drone, self.track_cmd)(0)
+                    self.track_cmd = ""
+
+
+        if cmd is not self.track_cmd:
+            if cmd is not "":
+                print("track command:", cmd)
+                getattr(self.drone, cmd)(self.speed)
+                self.track_cmd = cmd
 
         return image
 
